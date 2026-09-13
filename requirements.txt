@@ -1,0 +1,4 @@
+pandas==2.3.3
+requests==2.34.2
+python-dotenv==1.2.3
+snowflake-connector-python==4.7.3
