@@ -64,6 +64,27 @@ class FailedSchoolsScraper:
         return dataframe
 
 
+class TotallyBlockedThenWorkingScraper:
+    """Simulates every school failing once (e.g. a full IP block returning an
+    empty result), then a clean scrape on the next attempt."""
+
+    def __init__(self):
+        self.calls = 0
+
+    def get_contests(self, **kwargs):
+        self.calls += 1
+        if self.calls == 1:
+            dataframe = pd.DataFrame()
+            dataframe.attrs["schools_discovered"] = 5
+            dataframe.attrs["schools_scraped"] = 0
+            dataframe.attrs["failed_schools"] = [{"school": f"School {i}", "url": f"/{i}/"} for i in range(5)]
+            return dataframe
+        dataframe = pd.DataFrame({"Team 1": ["A"], "Team 2": ["B"]})
+        dataframe.attrs["schools_discovered"] = 5
+        dataframe.attrs["schools_scraped"] = 5
+        return dataframe
+
+
 def test_config_expands_small_units():
     config = IngestionConfig(
         states=["tx", "ca"],
@@ -183,6 +204,21 @@ def test_client_retries_on_incomplete_contests_scrape():
     assert scraper.calls == 2
     assert delays == [1]
     assert result.attrs["schools_scraped"] == 10
+
+
+def test_client_retries_a_totally_blocked_contests_scrape_instead_of_failing_fast():
+    """A fully-empty result (every school failed) must still go through the
+    completeness-driven retry, not the unretried EmptyScrapeResultError path —
+    otherwise a transient full block never gets a second chance."""
+    scraper = TotallyBlockedThenWorkingScraper()
+    delays = []
+    client = MaxPrepsClient(scraper, max_retries=2, initial_backoff_seconds=1, sleeper=delays.append)
+
+    result = client.fetch("contests", "tx", "basketball", "23-24")
+
+    assert scraper.calls == 2
+    assert delays == [1]
+    assert result.attrs["schools_scraped"] == 5
 
 
 def test_client_forwards_rate_limit_kwargs_to_default_scraper(monkeypatch):

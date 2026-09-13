@@ -74,12 +74,13 @@ class MaxPrepsClient:
         for attempt in range(1, self.max_retries + 1):
             try:
                 result = method(**arguments)
-                if result.empty:
-                    raise EmptyScrapeResultError(
-                        f"MaxPreps returned no rows for {ingestion_type} "
-                        f"{state}/{sport}/{season}"
-                    )
                 if ingestion_type == "contests":
+                    # Check completeness before the raw emptiness check below:
+                    # schools_discovered > 0 but schools_scraped == 0 means
+                    # every school was blocked/failed (e.g. a full IP block),
+                    # which is a transient-ish, retry-worth condition — not the
+                    # same as genuinely finding zero schools for this
+                    # state/season, which is not worth retrying.
                     discovered = result.attrs.get("schools_discovered")
                     scraped = result.attrs.get("schools_scraped")
                     if discovered and scraped / discovered < self.min_completeness_ratio:
@@ -88,6 +89,11 @@ class MaxPrepsClient:
                             f"contests {state}/{sport}/{season} "
                             f"({scraped / discovered:.0%})"
                         )
+                if result.empty:
+                    raise EmptyScrapeResultError(
+                        f"MaxPreps returned no rows for {ingestion_type} "
+                        f"{state}/{sport}/{season}"
+                    )
                 return result
             except (requests.RequestException, TimeoutError, ConnectionError, IncompleteScrapeError) as error:
                 last_error = error
