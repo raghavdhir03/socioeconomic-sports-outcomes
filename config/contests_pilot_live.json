@@ -1,0 +1,18 @@
+{
+  "states": ["vt", "wy"],
+  "sports": ["basketball"],
+  "seasons": ["25-26"],
+  "genders": ["boys"],
+  "ingestion_types": ["contests"],
+  "cities": null,
+  "max_retries": 5,
+  "initial_backoff_seconds": 3,
+  "request_delay_seconds": 2,
+  "requests_per_second": 1.5,
+  "min_completeness_ratio": 0.9,
+  "school_retry_attempts": 2,
+  "school_retry_delay_seconds": 10,
+  "cache_dir": ".cache/maxpreps-contests",
+  "log_path": ".cache/maxpreps-contests/ingestion.jsonl",
+  "snowflake_chunk_size": 5000
+}

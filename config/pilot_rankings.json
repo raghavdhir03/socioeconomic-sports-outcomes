@@ -1,0 +1,14 @@
+{
+  "states": ["tx"],
+  "sports": ["basketball"],
+  "seasons": ["23-24"],
+  "genders": ["boys"],
+  "ingestion_types": ["rankings"],
+  "cities": null,
+  "max_retries": 3,
+  "initial_backoff_seconds": 2,
+  "request_delay_seconds": 1,
+  "cache_dir": ".cache/maxpreps-pilot",
+  "log_path": ".cache/maxpreps-pilot/ingestion.jsonl",
+  "snowflake_chunk_size": 5000
+}

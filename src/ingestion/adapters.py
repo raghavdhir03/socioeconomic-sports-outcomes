@@ -1,0 +1,78 @@
+import hashlib
+import json
+
+import pandas as pd
+
+from .maxpreps_client import MaxPrepsClient
+from .models import IngestionUnit
+
+
+TABLES = {
+    "contests": "RAW_MAXPREPS_CONTESTS",
+    "rankings": "RAW_MAXPREPS_RANKINGS",
+    "districts": "RAW_MAXPREPS_DISTRICTS",
+}
+
+
+def _row_key(row):
+    values = {
+        str(key): str(value)
+        for key, value in row.items()
+        if key not in {"_ROW_KEY", "SCRAPED_AT"}
+    }
+    return hashlib.sha256(
+        json.dumps(values, sort_keys=True, default=str).encode("utf-8")
+    ).hexdigest()
+
+
+def _stringify_mixed_object_columns(dataframe):
+    """Force object columns with mixed Python types (e.g. pd.read_html turning
+    '+3' into a str but '-1' into an int within the same column) to a single
+    string dtype, since Snowflake's write_pandas cannot infer an Arrow type
+    for a column holding more than one Python type."""
+    result = dataframe.copy()
+    for column in result.columns:
+        if result[column].dtype != "object":
+            continue
+        non_null = result[column].dropna()
+        if non_null.map(type).nunique() > 1:
+            result[column] = result[column].where(result[column].isna(), result[column].astype(str))
+    return result
+
+
+def table_name_for_unit(unit: IngestionUnit) -> str:
+    """Snowflake table to write a unit's data into.
+
+    Contests get one physical table per sport/season (e.g.
+    RAW_MAXPREPS_CONTESTS_BASKETBALL_19_20) so all states for a given
+    sport/season accumulate together; rankings/districts keep the single
+    shared table they already use.
+    """
+    base = TABLES[unit.ingestion_type]
+    if unit.ingestion_type == "contests":
+        season = unit.season.replace("-", "_")
+        return f"{base}_{unit.sport.upper()}_{season}"
+    return base
+
+
+def add_metadata(dataframe, unit: IngestionUnit):
+    result = _stringify_mixed_object_columns(dataframe)
+    for key, value in unit.as_metadata().items():
+        result[key] = value
+    result["SCRAPED_AT"] = pd.Timestamp.utcnow()
+    result["_ROW_KEY"] = result.apply(_row_key, axis=1)
+    return result
+
+
+def ingest_unit(client: MaxPrepsClient, unit: IngestionUnit, cities=None):
+    dataframe = client.fetch(
+        unit.ingestion_type,
+        state=unit.state,
+        sport=unit.sport,
+        season=unit.season,
+        boys=unit.boys,
+        cities=cities,
+    )
+    if dataframe is None:
+        dataframe = pd.DataFrame()
+    return add_metadata(dataframe, unit)

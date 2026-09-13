@@ -9,15 +9,22 @@ load_dotenv()
 
 
 def get_snowflake_connection():
-    return snowflake.connector.connect(
-        account=os.getenv("SNOWFLAKE_ACCOUNT"),
-        user=os.getenv("SNOWFLAKE_USER"),
-        password=os.getenv("SNOWFLAKE_PASSWORD"),
-        warehouse=os.getenv("SNOWFLAKE_WAREHOUSE"),
-        database=os.getenv("SNOWFLAKE_DATABASE"),
-        schema=os.getenv("SNOWFLAKE_SCHEMA"),
-        role=os.getenv("SNOWFLAKE_ROLE"),
-    )
+    connection_args = {
+        "account": os.getenv("SNOWFLAKE_ACCOUNT"),
+        "user": os.getenv("SNOWFLAKE_USER"),
+        "warehouse": os.getenv("SNOWFLAKE_WAREHOUSE"),
+        "database": os.getenv("SNOWFLAKE_DATABASE"),
+        "schema": os.getenv("SNOWFLAKE_SCHEMA"),
+        "role": os.getenv("SNOWFLAKE_ROLE"),
+    }
+    if os.getenv("SNOWFLAKE_AUTHENTICATOR"):
+        connection_args["authenticator"] = os.getenv("SNOWFLAKE_AUTHENTICATOR")
+    if os.getenv("SNOWFLAKE_PASSWORD"):
+        connection_args["password"] = os.getenv("SNOWFLAKE_PASSWORD")
+    if os.getenv("SNOWFLAKE_PRIVATE_KEY_PATH"):
+        connection_args["private_key_file"] = os.getenv("SNOWFLAKE_PRIVATE_KEY_PATH")
+        connection_args["private_key_file_pwd"] = os.getenv("SNOWFLAKE_PRIVATE_KEY")
+    return snowflake.connector.connect(**connection_args)
 
 
 def write_dataframe(df, table_name, schema=None):
