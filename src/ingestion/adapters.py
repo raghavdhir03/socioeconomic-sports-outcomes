@@ -61,6 +61,16 @@ def add_metadata(dataframe, unit: IngestionUnit):
         result[key] = value
     result["SCRAPED_AT"] = pd.Timestamp.utcnow()
     result["_ROW_KEY"] = result.apply(_row_key, axis=1)
+
+    # A _ROW_KEY collision means two rows are identical in every tracked
+    # column (same game, same score, etc.) — the scraper can produce this
+    # (e.g. a school appearing twice in a state's rankings pagination) and
+    # Snowflake's MERGE can't handle two source rows matching one target key,
+    # so it fails outright rather than picking one. Drop to the first
+    # occurrence rather than let that reach the writer.
+    attrs = result.attrs
+    result = result.drop_duplicates(subset="_ROW_KEY", keep="first").reset_index(drop=True)
+    result.attrs = attrs
     return result
 
 

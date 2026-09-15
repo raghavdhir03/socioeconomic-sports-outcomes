@@ -130,6 +130,30 @@ def test_metadata_row_key_ignores_scrape_timestamp():
     assert first.loc[0, "_ROW_KEY"] == second.loc[0, "_ROW_KEY"]
 
 
+def test_add_metadata_drops_exact_duplicate_rows():
+    """Two rows identical in every tracked column hash to the same
+    _ROW_KEY, which Snowflake's MERGE can't handle (two source rows
+    matching one target key) — must be de-duplicated before it reaches
+    the writer, not left for Snowflake to reject."""
+    unit = IngestionUnit("contests", "al", "basketball", "19-20")
+    dataframe = pd.DataFrame({"Team 1": ["Talladega", "Talladega"], "Team 2": ["Central", "Central"]})
+
+    result = add_metadata(dataframe, unit)
+
+    assert len(result) == 1
+    assert result["_ROW_KEY"].is_unique
+
+
+def test_add_metadata_preserves_attrs_through_deduplication():
+    unit = IngestionUnit("contests", "al", "basketball", "19-20")
+    dataframe = pd.DataFrame({"Team 1": ["A"], "Team 2": ["B"]})
+    dataframe.attrs["failed_schools"] = [{"school": "X", "url": "/x"}]
+
+    result = add_metadata(dataframe, unit)
+
+    assert result.attrs["failed_schools"] == [{"school": "X", "url": "/x"}]
+
+
 def test_runner_reuses_cache_and_resumes_successful_units():
     config = IngestionConfig(
         states=["tx"], sports=["basketball"], seasons=["23-24"],
