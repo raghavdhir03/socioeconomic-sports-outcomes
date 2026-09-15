@@ -2,3 +2,8 @@ pandas==2.3.3
 requests==2.34.2
 python-dotenv==1.2.3
 snowflake-connector-python==4.7.3
+# pyarrow is not a hard dependency of snowflake-connector-python, only an
+# optional one write_pandas() needs at runtime — pin it explicitly so a
+# fresh environment doesn't silently work by accident (it was already
+# present, from outside this file, in the venv this was first written in).
+pyarrow==25.0.1
