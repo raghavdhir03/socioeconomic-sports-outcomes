@@ -155,6 +155,38 @@ def test_runner_reuses_cache_and_resumes_successful_units():
         assert len(writer.writes) == 1
 
 
+def test_runner_keeps_skipping_a_unit_across_repeated_resumes():
+    """A unit's latest logged status becomes "skipped" (not "succeeded") the
+    first time it's skipped — a later run must still recognize that as
+    already done, not silently redo it because the literal word isn't
+    "succeeded" anymore."""
+    config = IngestionConfig(
+        states=["tx"], sports=["basketball"], seasons=["23-24"],
+        genders=["boys"], ingestion_types=["rankings"],
+        request_delay_seconds=0,
+    )
+    with TemporaryDirectory() as directory:
+        config.cache_dir = directory + "/cache"
+        config.log_path = directory + "/ingestion.jsonl"
+        writer = NoopWriter()
+        scraper = FakeScraper()
+        runner = IngestionRunner(
+            config,
+            writer,
+            client=MaxPrepsClient(scraper, request_delay_seconds=0),
+            cache=DataFrameCache(config.cache_dir),
+            log=JsonlIngestionLog(config.log_path),
+            sleeper=lambda _: None,
+        )
+
+        assert runner.run() == [("rankings:tx:basketball:boys:23-24", "succeeded")]
+        assert runner.run() == [("rankings:tx:basketball:boys:23-24", "skipped")]
+        # A third run, after the unit's latest status is "skipped" rather
+        # than "succeeded", must still skip it — not redo the scrape.
+        assert runner.run() == [("rankings:tx:basketball:boys:23-24", "skipped")]
+        assert len(writer.writes) == 1
+
+
 def test_table_name_for_unit_adds_sport_and_season_for_contests():
     unit = IngestionUnit("contests", "tx", "basketball", "19-20")
     assert table_name_for_unit(unit) == "RAW_MAXPREPS_CONTESTS_BASKETBALL_19_20"

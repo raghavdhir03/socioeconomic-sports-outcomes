@@ -30,7 +30,13 @@ class IngestionRunner:
         run_id = uuid.uuid4().hex
         results = []
         for unit in self.config.units():
-            if self.log.status(unit) == "succeeded" and self.cache.load(unit) is not None:
+            # "skipped" is itself evidence of a prior success (that's the only
+            # reason a unit is ever logged that way) — treating only the
+            # literal word "succeeded" as done means a unit's status flips to
+            # "skipped" the first time it's skipped, and every run after that
+            # stops recognizing it as done, silently redoing already-finished
+            # work on every subsequent resume.
+            if self.log.status(unit) in ("succeeded", "skipped") and self.cache.load(unit) is not None:
                 self.log.record(unit, "skipped", run_id=run_id, reason="already_succeeded")
                 results.append((unit.unit_id, "skipped"))
                 continue
