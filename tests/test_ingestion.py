@@ -9,6 +9,7 @@ from src.ingestion.maxpreps_client import MaxPrepsClient
 from src.ingestion.maxpreps_client import EmptyScrapeResultError
 from src.ingestion.models import IngestionUnit
 from src.ingestion.runner import IngestionRunner
+from src.ingestion.status import summarize
 from src.ingestion.writers import NoopWriter
 
 
@@ -388,3 +389,32 @@ def test_runner_logs_failed_schools_from_contests_scrape():
         unit = next(config.units())
         record = log.latest()[unit.unit_id]
         assert record["failed_schools"] == [{"school": "Ghost High", "url": "/ghost/schedule/"}]
+
+
+def test_summarize_reports_completion_and_failures():
+    latest = {
+        "contests:tx:basketball:boys:19-20": {
+            "STATE": "tx", "SEASON": "19-20", "status": "succeeded",
+        },
+        "contests:tx:basketball:boys:20-21": {
+            "STATE": "tx", "SEASON": "20-21", "status": "succeeded",
+        },
+        "contests:ca:basketball:boys:19-20": {
+            "STATE": "ca", "SEASON": "19-20", "status": "succeeded",
+        },
+        "contests:ca:basketball:boys:20-21": {
+            "STATE": "ca", "SEASON": "20-21", "status": "failed", "error_message": "boom",
+        },
+        "contests:ny:basketball:boys:19-20": {
+            "STATE": "ny", "SEASON": "19-20", "status": "running",
+        },
+    }
+
+    stats = summarize(latest)
+
+    assert stats["total_units"] == 5
+    assert stats["status_counts"] == {"succeeded": 3, "failed": 1, "running": 1}
+    assert stats["states_total"] == 3
+    assert stats["states_complete"] == ["tx"]  # only tx has every season seen
+    assert stats["running"] == ["contests:ny:basketball:boys:19-20"]
+    assert stats["failures"] == [("contests:ca:basketball:boys:20-21", "boom")]
