@@ -275,6 +275,16 @@ def test_table_name_for_unit_adds_sport_and_season_for_contests():
     assert table_name_for_unit(unit) == "RAW_MAXPREPS_CONTESTS_BASKETBALL_19_20"
 
 
+def test_table_name_for_unit_girls_gets_a_separate_table_from_boys():
+    """Boys keep the existing, already-ingested table name unchanged (no
+    migration needed); any other gender gets its own explicitly labeled
+    table instead of sharing it."""
+    girls_unit = IngestionUnit("contests", "tx", "basketball", "19-20", boys=False)
+    boys_unit = IngestionUnit("contests", "tx", "basketball", "19-20", boys=True)
+    assert table_name_for_unit(girls_unit) == "RAW_MAXPREPS_CONTESTS_BASKETBALL_GIRLS_19_20"
+    assert table_name_for_unit(boys_unit) == "RAW_MAXPREPS_CONTESTS_BASKETBALL_19_20"
+
+
 def test_table_name_for_unit_rankings_and_districts_unchanged():
     rankings_unit = IngestionUnit("rankings", "tx", "basketball", "23-24")
     districts_unit = IngestionUnit("districts", "tx", "basketball", "23-24")

@@ -1,0 +1,24 @@
+{
+  "states": [
+    "ak", "al", "ar", "az", "ca", "co", "ct", "dc", "de", "fl", "ga",
+    "hi", "ia", "id", "il", "in", "ks", "ky", "la", "ma", "md",
+    "me", "mi", "mn", "mo", "ms", "mt", "nc", "nd", "ne", "nh",
+    "nj", "nm", "nv", "ny", "oh", "ok", "or", "pa", "ri", "sc",
+    "sd", "tn", "tx", "ut", "va", "vt", "wa", "wi", "wv", "wy"
+  ],
+  "sports": ["basketball"],
+  "seasons": ["19-20", "20-21", "21-22", "22-23", "23-24", "24-25", "25-26"],
+  "genders": ["girls"],
+  "ingestion_types": ["contests"],
+  "cities": null,
+  "max_retries": 5,
+  "initial_backoff_seconds": 3,
+  "request_delay_seconds": 2,
+  "requests_per_second": 1.5,
+  "min_completeness_ratio": 0.9,
+  "school_retry_attempts": 2,
+  "school_retry_delay_seconds": 10,
+  "cache_dir": ".cache/maxpreps-contests-girls",
+  "log_path": ".cache/maxpreps-contests-girls/ingestion.jsonl",
+  "snowflake_chunk_size": 5000
+}

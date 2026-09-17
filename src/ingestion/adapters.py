@@ -47,11 +47,18 @@ def table_name_for_unit(unit: IngestionUnit) -> str:
     RAW_MAXPREPS_CONTESTS_BASKETBALL_19_20) so all states for a given
     sport/season accumulate together; rankings/districts keep the single
     shared table they already use.
+
+    Boys' table names carry no gender segment at all — they're the
+    existing, already-ingested tables, and changing their names now would
+    require migrating real data and break anything already querying them.
+    Any other gender (currently just "girls") gets its own explicitly
+    labeled set of tables instead of sharing boys' table.
     """
     base = TABLES[unit.ingestion_type]
     if unit.ingestion_type == "contests":
         season = unit.season.replace("-", "_")
-        return f"{base}_{unit.sport.upper()}_{season}"
+        gender_segment = "" if unit.boys else f"_{unit.gender.upper()}"
+        return f"{base}_{unit.sport.upper()}{gender_segment}_{season}"
     return base
 
 
