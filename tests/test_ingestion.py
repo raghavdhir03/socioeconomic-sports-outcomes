@@ -33,6 +33,31 @@ class EmptyScraper:
         return pd.DataFrame()
 
 
+class CountingScraper:
+    def __init__(self):
+        self.calls = 0
+
+    def get_rankings(self, **kwargs):
+        self.calls += 1
+        return pd.DataFrame({"Team": ["A"]})
+
+
+class FailingThenWorkingWriter:
+    """Fails the first write (simulating a Snowflake-side failure on
+    otherwise-good scraped data), succeeds every time after."""
+
+    def __init__(self):
+        self.calls = 0
+        self.writes = []
+
+    def write(self, dataframe, table_name):
+        self.calls += 1
+        if self.calls == 1:
+            raise RuntimeError("simulated Snowflake write failure")
+        self.writes.append((table_name, dataframe.copy()))
+        return len(dataframe)
+
+
 class FakeContestsScraper:
     def get_contests(self, **kwargs):
         return pd.DataFrame({"Team 1": ["A"], "Team 2": ["B"]})
@@ -208,6 +233,39 @@ def test_runner_keeps_skipping_a_unit_across_repeated_resumes():
         # A third run, after the unit's latest status is "skipped" rather
         # than "succeeded", must still skip it — not redo the scrape.
         assert runner.run() == [("rankings:tx:basketball:boys:23-24", "skipped")]
+        assert len(writer.writes) == 1
+
+
+def test_runner_does_not_reuse_cache_from_a_failed_unit():
+    """Caching happens right after scraping, before the write that can
+    fail — so a unit that fails at the write step still has a cache file
+    on disk. A retry must not blindly trust that cache (a code fix to the
+    scrape/transform step would never take effect otherwise) — it must
+    re-scrape."""
+    config = IngestionConfig(
+        states=["tx"], sports=["basketball"], seasons=["23-24"],
+        genders=["boys"], ingestion_types=["rankings"],
+        request_delay_seconds=0,
+    )
+    with TemporaryDirectory() as directory:
+        config.cache_dir = directory + "/cache"
+        config.log_path = directory + "/ingestion.jsonl"
+        scraper = CountingScraper()
+        writer = FailingThenWorkingWriter()
+        runner = IngestionRunner(
+            config,
+            writer,
+            client=MaxPrepsClient(scraper, request_delay_seconds=0),
+            cache=DataFrameCache(config.cache_dir),
+            log=JsonlIngestionLog(config.log_path),
+            sleeper=lambda _: None,
+        )
+
+        assert runner.run() == [("rankings:tx:basketball:boys:23-24", "failed")]
+        assert scraper.calls == 1
+
+        assert runner.run() == [("rankings:tx:basketball:boys:23-24", "succeeded")]
+        assert scraper.calls == 2  # re-scraped — did not reuse the stale cache
         assert len(writer.writes) == 1
 
 

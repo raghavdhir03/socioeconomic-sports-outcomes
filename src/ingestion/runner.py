@@ -30,20 +30,33 @@ class IngestionRunner:
         run_id = uuid.uuid4().hex
         results = []
         for unit in self.config.units():
+            # Captured once, before this iteration logs anything for this
+            # unit — used below for both the skip check and the cache-trust
+            # check. Reading it again after logging "running" would just see
+            # that fresh "running" record instead of the real prior outcome.
+            previous_status = self.log.status(unit)
+
             # "skipped" is itself evidence of a prior success (that's the only
             # reason a unit is ever logged that way) — treating only the
             # literal word "succeeded" as done means a unit's status flips to
             # "skipped" the first time it's skipped, and every run after that
             # stops recognizing it as done, silently redoing already-finished
             # work on every subsequent resume.
-            if self.log.status(unit) in ("succeeded", "skipped") and self.cache.load(unit) is not None:
+            if previous_status in ("succeeded", "skipped") and self.cache.load(unit) is not None:
                 self.log.record(unit, "skipped", run_id=run_id, reason="already_succeeded")
                 results.append((unit.unit_id, "skipped"))
                 continue
 
             self.log.record(unit, "running", run_id=run_id)
             try:
-                dataframe = self.cache.load(unit)
+                # Only trust a cached dataframe when the unit's last real
+                # outcome was itself a success. A unit that previously failed
+                # still gets cached (caching happens right after scraping,
+                # before the write that can fail), so blindly reusing it here
+                # would replay the exact same bad data forever — even after a
+                # code fix to the scrape/transform step — since ingest_unit()
+                # (and therefore the fix) never runs again.
+                dataframe = self.cache.load(unit) if previous_status != "failed" else None
                 if dataframe is None:
                     dataframe = ingest_unit(self.client, unit, self.config.cities)
                     cache_path = self.cache.save(unit, dataframe)
